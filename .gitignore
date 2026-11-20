@@ -1,0 +1,4 @@
+*.img
+*.map
+__pycache__/
+recovered/
