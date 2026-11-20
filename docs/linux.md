@@ -26,6 +26,7 @@ sudo dmesg | grep -iE 'sdX|exfat|ntfs|fat|ext4|I/O error|reset|disconnect' | tai
 | `exFAT-fs: failed to load alloc-bitmap` / `no upcase table` | exFAT metadata destroyed | [step 4](#4-make-an-image-before-any-repair), then [exfat_salvage](../tools/exfat_salvage.py) |
 | `I/O error, dev sdX, sector ...` | bad sectors, the drive is failing | [step 4](#4-make-an-image-before-any-repair) **now**, with `ddrescue` |
 | `USB disconnect` repeating | cable, port, power or USB autosuspend | [step 3](#3-usb-drives-that-disconnect) |
+| No message, but `lsblk -f` shows a partition with **no FSTYPE** (often after Windows asked to format) | the partition table was rewritten, the data may still be there | [step 10](#10-windows-asked-to-format-the-drive) |
 | `Write Protect is on` | hardware lock or dying flash | check the switch on SD cards; otherwise the drive is at end of life |
 
 You can also run the read-only checker from this repository:
@@ -226,7 +227,79 @@ no drive letter. Your files are on the big "basic data" partition.
 The data partition is not moved, so your files stay. To undo:
 `sudo sfdisk /dev/sdX < sdX-partitions-backup.txt`.
 
-## 10. Prevent it next time
+## 10. Windows asked to format the drive
+
+When Windows cannot read a drive, it shows *"You need to format the disk before you can use
+it"*. **Always click Cancel.** It only means Windows does not understand the drive.
+
+If the format was started and then stopped (you cancelled, or the USB cable disconnected),
+Windows may have written a new partition table before formatting anything. The new
+partition shows up with no file system, but your files are still on the disk, at the
+place where the old partition started.
+
+1. Look at the drive. A partition with an empty `FSTYPE`, or a type that does not match
+   (`FAT16` on a 240 GB disk), is the sign:
+
+   ```bash
+   lsblk -f /dev/sdX
+   sudo sfdisk -l /dev/sdX
+   ```
+
+2. Find where the old partition started.
+   - If you saved the table before (`sfdisk -d`, see [step 9](#9-remove-leftover-windows-partitions-from-an-external-disk)),
+     the `start=` value is in that file.
+   - Otherwise, run `sudo testdisk /dev/sdX`, then *Analyse* → *Quick Search*: it lists the
+     partitions it finds with their start sector. Do not press *Write* yet.
+
+3. Check that the file system is really there (read-only). Replace `START` with the
+   sector number:
+
+   ```bash
+   sudo dd if=/dev/sdX bs=512 skip=START count=1 status=none | head -c 16 | xxd
+   ```
+
+   You should see `NTFS`, `EXFAT` or `MSDOS5.0`/`FAT32` in the text on the right.
+
+4. Mount it read-only, **without changing the partition table**, and look at your files.
+   `SIZE` is the size of the old partition in sectors:
+
+   ```bash
+   L=$(sudo losetup -r -f --show -o $((START*512)) --sizelimit $((SIZE*512)) /dev/sdX)
+   sudo ntfsfix -n $L                  # NTFS only: checks, changes nothing
+   sudo mkdir -p /mnt/rescue && sudo mount -o ro $L /mnt/rescue
+   ls /mnt/rescue
+   ```
+
+   If the files are there, copy the important ones to another disk now.
+
+5. Put the old partition table back. First save the wrong one, so you can undo:
+
+   ```bash
+   sudo umount /mnt/rescue; sudo losetup -d $L
+   sudo sfdisk -d /dev/sdX > sdX-wrong-table.txt
+   printf 'label: gpt\nstart=START, size=SIZE, type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7\n' \
+       | sudo sfdisk --wipe-partitions never /dev/sdX
+   lsblk -f /dev/sdX                   # the partition shows its file system again
+   ```
+
+   - `EBD0A0A2-...` is "Microsoft basic data" (NTFS, exFAT, FAT32).
+   - If the disk used MBR before (TestDisk says *Intel*), use
+     `printf 'label: dos\nstart=START, size=SIZE, type=7\n'` instead.
+   - If you have the saved table from before, use it instead:
+     `sudo sfdisk --wipe-partitions never /dev/sdX < sdX-partitions-backup.txt`.
+   - `--wipe-partitions never` stops sfdisk from erasing the file system signature it finds.
+
+   With TestDisk, step 5 is: select the partition it found → *Write*.
+
+Only the first sectors of the disk change: your files are not moved.
+If Windows still asks to format after this, the USB adapter or cable may be the cause
+(see [step 3](#3-usb-drives-that-disconnect)).
+
+## 11. Prevent it next time
+
+- When Windows or a TV asks to format or "initialize" a drive that has your files: **Cancel**.
+- Save the partition table of your external disks, it takes one second:
+  `sudo sfdisk -d /dev/sdX > sdX-partitions-backup.txt`.
 
 - Always **eject** a drive before unplugging it.
 - Keep two copies of anything important, on two different devices.
