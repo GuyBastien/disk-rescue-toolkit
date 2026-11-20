@@ -85,6 +85,23 @@ For a failing drive, add a second pass that retries the bad areas:
 sudo ddrescue -d -r3 /dev/sdX drive.img drive.map
 ```
 
+### Clonezilla: for a drive that still works
+
+[Clonezilla](https://clonezilla.org) is a live system you boot from a USB key. It copies a
+whole disk to an image (`device-image`) or to another disk (`device-device`), for example
+to move to a new SSD or to keep a backup of a computer.
+
+| | ddrescue | Clonezilla |
+|---|---|---|
+| Damaged file system or bad sectors | yes, made for it | no: it needs a readable file system (or falls back to a slow raw copy) |
+| Copies | every sector, even empty ones | only the used space, compressed: smaller image |
+| Result | one raw `.img` file, ready for fsck, TestDisk, exfat_salvage | a Clonezilla folder, to restore with Clonezilla |
+| Runs | from your normal Linux | from its own boot key |
+
+Use **ddrescue** to rescue a broken drive, **Clonezilla** to clone or back up a healthy one.
+Clonezilla shows the disks by name and size: check twice which one is the **source**,
+restoring the wrong way erases the good disk.
+
 ## 5. Repair the file system
 
 Run these on the image (attach it as a loop device) or, if you have an image, on the drive.
@@ -213,4 +230,6 @@ The data partition is not moved, so your files stay. To undo:
 
 - Always **eject** a drive before unplugging it.
 - Keep two copies of anything important, on two different devices.
+- Make a full image of your computer with Clonezilla from time to time
+  ([step 4](#clonezilla-for-a-drive-that-still-works)).
 - Prefer known brands (SanDisk, Kingston, Samsung, Crucial) bought from real shops.

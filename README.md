@@ -7,7 +7,7 @@ an SD card or a hard disk on Linux.
 
 | File | What it does |
 |---|---|
-| [docs/linux.md](docs/linux.md) | The guide: find the problem, make an image, repair, recover files, test for fake drives, format |
+| [docs/linux.md](docs/linux.md) | The guide: find the problem, make an image (ddrescue or Clonezilla), repair, recover files, test for fake drives, format |
 | [scripts/diskcheck.sh](scripts/diskcheck.sh) | Read-only check of a drive: kernel messages, SMART health, file system check. Changes nothing |
 | [tools/exfat_salvage.py](tools/exfat_salvage.py) | Recovers files **with their names and folders** from a broken exFAT drive |
 
